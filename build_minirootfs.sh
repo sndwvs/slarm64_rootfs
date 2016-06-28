@@ -179,7 +179,7 @@ set_chroot() {
     # This command is corrected
     echo -1 > /proc/sys/fs/binfmt_misc/arm
 
-    sudo sh -c 'echo ":arm:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-arm-static:" > /proc/sys/fs/binfmt_misc/register'
+    sudo sh -c 'echo ":arm:M::\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-arm-static:" > /proc/sys/fs/binfmt_misc/register'
 
     if [[ ! -x /usr/bin/qemu-arm-static ]]; then
         dialog --title "message" --progressbox $TTY_Y $TTY_X << EOF
@@ -187,8 +187,8 @@ set_chroot() {
 *****************************************************************
 
 To continue install the package:
-qemu-user-static-2.2-x86_64-1mara.txz
-http://dl.fail.pp.ua/slackware/pkg/x86_64/ap/qemu-user-static-2.2-x86_64-1mara.txz
+qemu-user-static-2.6-x86_64-1mara.txz
+http://dl.fail.pp.ua/slackware/pkg/x86_64/ap/qemu-user-static-2.6-x86_64-1mara.txz
 
 *****************************************************************
 
