@@ -179,7 +179,8 @@ set_chroot() {
     # This command is corrected
     echo -1 > /proc/sys/fs/binfmt_misc/arm
 
-    sudo sh -c 'echo ":arm:M::\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-arm-static:" > /proc/sys/fs/binfmt_misc/register'
+    #sudo sh -c 'echo ":arm:M::\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-arm-static:" > /proc/sys/fs/binfmt_misc/register'
+    sudo sh -c 'echo ":arm:M::$(cat /var/lib/binfmts/qemu-arm | grep "magic\|mask\|interpreter" | cut -f2 -d " " | sed -e ":a;N;\$!ba;s/\n/:/g" -e "s/\(.*\):\(.*\):\(.*\)/\2:\3:\1:/")" > /proc/sys/fs/binfmt_misc/register'
 
     if [[ ! -x /usr/bin/qemu-arm-static ]]; then
         dialog --title "message" --progressbox $TTY_Y $TTY_X << EOF
