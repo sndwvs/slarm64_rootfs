@@ -107,9 +107,9 @@ install_pkg() {
             processed=$((processed+1))
             name_pkg=$(echo $pkg | cut -f2 -d "/")
             installpkg --root $ROOTFS $TMP_PKG/$name_pkg* 2>&1>/dev/null
-	    if [[ $name_pkg == glibc-solibs ]]; then
-		fixing_glibc
-	    fi
+            if [[ $name_pkg == glibc-solibs ]]; then
+                fixing_glibc
+            fi
             echo "XXX"
             echo $name_pkg
             echo "XXX"
@@ -122,10 +122,10 @@ install_pkg() {
 set_chroot() {
     # Configure binfmt_misc qemu to use for the new arm-elf:
     if [[ ! $(lsmod | grep binfmt_misc ) ]]; then
-	sudo modprobe binfmt_misc || exit 1
+        sudo modprobe binfmt_misc || exit 1
     fi
     if [[ ! $(mount | grep binfmt_misc ) ]]; then
-	sudo mount -t binfmt_misc none /proc/sys/fs/binfmt_misc || exit 1
+        sudo mount -t binfmt_misc none /proc/sys/fs/binfmt_misc || exit 1
     fi
 
     # If you have to write something, the third team can generate an error in the /proc/sys/fs/binfmt_misc/register:
@@ -142,7 +142,7 @@ qemu-user-static-2.2-x86_64-1mara.txz
 http://dl.fail.pp.ua/slackware/pkg/x86_64/ap/qemu-user-static-2.2-x86_64-1mara.txz
 EOF
         sleep 2
-	exit 1
+        exit 1
     fi
     # Copy a HOST static qemu-arm inside arm root:
     sudo cp /usr/bin/qemu-arm-static $ROOTFS/usr/bin
@@ -387,9 +387,9 @@ This may take some time...
 *****************************************************************
 EOF
 
-cd $ROOTFS
-tar cJf ../$PACK_NAME.tar.xz .
-cd $CWD
+pushd $ROOTFS > /dev/null
+tar cJf $CWD/$PACK_NAME.tar.xz .
+popd > /dev/null
 
 # deleting old files
 rm -rf $ROOTFS || exit 1
