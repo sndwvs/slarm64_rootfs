@@ -40,21 +40,58 @@ set +o posix
 # Date::   2016-06-28
 ##############################################################################
 
+
+
+
 export LC_ALL=C
 
 CWD=$(pwd)
+
+# Make sure only root can run our script
+if [[ $EUID -ne 0 ]]; then
+ dialog --title "message" --progressbox $TTY_Y $TTY_X << EOF
+
+*****************************************************************
+
+This script must be run as root or sudo
+
+*****************************************************************
+
+EOF
+    sleep 2
+    exit 1
+fi
+
+
+case "$1" in
+    -b )
+        shift
+        BRANCH="$1"
+    ;;
+    *)
+        echo -e "\nusage: $0 -b current\n"
+        echo -e "Options:"
+        echo -en "  -b"
+        echo -e "  to set the creation of mini rootfs selected branch \"current\", \"14.2\" and so on\n"
+        exit 1
+    ;;
+esac
+
+
+
 
 TTY_X=$(($(stty size | cut -f2 -d " ")-10))
 TTY_Y=$(($(stty size | cut -f1 -d " ")-10))
 
 PKG_FILE="packages-minirootfs.conf"
-URL="http://dl.fail.pp.ua/slackware/slackwarearm-current/slackware/"
+URL="http://dl.fail.pp.ua/slackware/slackwarearm-$BRANCH/slackware/"
 
 # Set your host name:
 NEWHOST="slackware.localdomain"
-ROOTPASS="$( mkpasswd -l 15 -d 3 -C 5 )"
+#ROOTPASS="$( mkpasswd -l 15 -d 3 -C 5 )"
+ROOTPASS="password"
 
-PACK_NAME="slack-current-miniroot_"$(date +%d%b%g)
+PACK_NAME="slack-$BRANCH-miniroot_"$(date +%d%b%g)
 
 # Temporary location where the root filesystem will be created:
 ROOTFS=$CWD/miniroot/
@@ -72,6 +109,15 @@ source $PKG_FILE
 
 # number of packages
 COUNT_PKG=$(echo $PKGLIST | wc -w)
+
+
+
+# checked branch
+if [[ $(wget -O - http://dl.fail.pp.ua/slackware/slackwarearm-$BRANCH/slackware/ 2>&1 | grep "Not Found") ]]; then
+    dialog --title "error" --infobox "branch \"$BRANCH\" does not exist" $TTY_Y $TTY_X
+    sleep 2
+    exit 1
+fi
 
 
 
@@ -98,7 +144,7 @@ download_pkg() {
 
 install_pkg() {
     # Needed to find package names:
-    shopt -s extglob
+    #shopt -s extglob
     (
         processed=1
         for pkg in $PKGLIST; do
@@ -115,7 +161,7 @@ install_pkg() {
             echo "XXX"
             printf '%.0f\n' ${procent}
         done
-    ) | dialog --title "Instalation packages" --gauge "Instalation package..." 6 $TTY_X
+    ) | dialog --title "Installation packages" --gauge "Installation package..." 6 $TTY_X
 }
 
 
@@ -136,14 +182,21 @@ set_chroot() {
     sudo sh -c 'echo ":arm:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-arm-static:" > /proc/sys/fs/binfmt_misc/register'
 
     if [[ ! -x /usr/bin/qemu-arm-static ]]; then
-        dialog --title "messages" --progressbox $TTY_Y $TTY_X << EOF
+        dialog --title "message" --progressbox $TTY_Y $TTY_X << EOF
+
+*****************************************************************
+
 To continue install the package:
 qemu-user-static-2.2-x86_64-1mara.txz
 http://dl.fail.pp.ua/slackware/pkg/x86_64/ap/qemu-user-static-2.2-x86_64-1mara.txz
+
+*****************************************************************
+
 EOF
         sleep 2
         exit 1
     fi
+
     # Copy a HOST static qemu-arm inside arm root:
     sudo cp /usr/bin/qemu-arm-static $ROOTFS/usr/bin
 
@@ -358,52 +411,85 @@ cat << EOF > etc/e2fsck.conf
 EOF
 
 # Check the installation works:
-dialog --title "messages" --progressbox $TTY_Y $TTY_X << EOF
+dialog --title "message" --progressbox $TTY_Y $TTY_X << EOF
+
 *****************************************************************
+
 Dropping into chroot NOW
 Test this works.  We might need additional packages if there are
 new dependencies.
 
 exit the chroot to continue packaging this filesystem.
+
 *****************************************************************
+
 EOF
 
 sleep 2
 
 if [[ $(uname -a | grep arm) ]]; then
    chroot $ROOTFS bin/bash -l
-   echo "chroot finished." | dialog --title "messages" --progressbox $TTY_Y $TTY_X
+   echo "chroot finished." | dialog --title "message" --progressbox $TTY_Y $TTY_X
+   sleep 2
 fi
 
 # Clean up anything left over from the test within the chroot:
 rm -f root/.bash_history
 
+dialog --title "message" --progressbox $TTY_Y $TTY_X << EOF
+
+*****************************************************************
+
+Create archive.
+This may take some time...
+
+*****************************************************************
+
+EOF
 sleep 2
 
-dialog --title "messages" --progressbox $TTY_Y $TTY_X << EOF
+pushd $ROOTFS > /dev/null
+tar -pcJf $CWD/$PACK_NAME.tar.xz .
+popd > /dev/null
+
+
+dialog --title "message" --progressbox $TTY_Y $TTY_X << EOF
+
 *****************************************************************
-Archive creation.
-This may take some time...
+
+Generating details file, including SHA1SUM...
+
 *****************************************************************
+
+EOF
+sleep 2
+
+
+cat << EOF > $CWD/${PACK_NAME}_details.txt
+
+This is a mini rootfs for Slackware ARM branch "$BRANCH".
+Generated on $( date -u )
+
+The login details are:
+User....: root
+Password: $ROOTPASS
+
+SSH key finger prints:
+$( for key in $ROOTFS/etc/ssh/ssh_host_*key*.pub ; do ssh-keygen -lf $key ; done )
+
+The SHA1SUM of the mini root filesystem archive:
+$( pushd $CWD > /dev/null && sha1sum $PACK_NAME.tar.xz ; popd > /dev/null )
+
+Uncompressed size: $( du -sh $ROOTFS | awk '{print $1}' )
+
 EOF
 
-pushd $ROOTFS > /dev/null
-tar cJf $CWD/$PACK_NAME.tar.xz .
-popd > /dev/null
 
 # deleting old files
 rm -rf $ROOTFS || exit 1
 rm -rf $TMP_PKG || exit 1
 
-dialog --title "messages" --progressbox $TTY_Y $TTY_X << EOF
-*****************************************************************
-Creating mini rootfs completed.
-minirootfs created in the directory:
-$CWD
-Archive: $PACK_NAME.tar.xz
-*****************************************************************
-EOF
-
+cat $CWD/${PACK_NAME}_details.txt | dialog --title "message" --progressbox $TTY_Y $TTY_X
 sleep 2
 
-#EOF
+# EOF
