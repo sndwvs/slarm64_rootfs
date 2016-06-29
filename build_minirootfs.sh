@@ -47,6 +47,11 @@ export LC_ALL=C
 
 CWD=$(pwd)
 
+
+TTY_X=$(($(stty size | cut -f2 -d " ")-10))
+TTY_Y=$(($(stty size | cut -f1 -d " ")-10))
+
+
 # Make sure only root can run our script
 if [[ $EUID -ne 0 ]]; then
  dialog --title "message" --progressbox $TTY_Y $TTY_X << EOF
@@ -77,27 +82,7 @@ case "$1" in
     ;;
 esac
 
-
-
-
-TTY_X=$(($(stty size | cut -f2 -d " ")-10))
-TTY_Y=$(($(stty size | cut -f1 -d " ")-10))
-
 PKG_FILE="packages-minirootfs.conf"
-URL="http://dl.fail.pp.ua/slackware/slackwarearm-$BRANCH/slackware/"
-
-# Set your host name:
-NEWHOST="slackware.localdomain"
-#ROOTPASS="$( mkpasswd -l 15 -d 3 -C 5 )"
-ROOTPASS="password"
-
-PACK_NAME="slack-$BRANCH-miniroot_"$(date +%d%b%g)
-
-# Temporary location where the root filesystem will be created:
-ROOTFS=$CWD/miniroot/
-
-TMP_PKG=$CWD/pkg
-mkdir -vpm755 {$TMP_PKG,$ROOTFS}
 
 if [[ ! -f $PKG_FILE ]]; then
     dialog --title "error" --infobox "no configuration packet file" $TTY_Y $TTY_X
@@ -107,13 +92,31 @@ fi
 
 source $PKG_FILE
 
-# number of packages
-COUNT_PKG=$(echo $PKGLIST | wc -w)
+# Set your host name:
+NEWHOST="slackware.localdomain"
+#ROOTPASS="$( mkpasswd -l 15 -d 3 -C 5 )"
+ROOTPASS="password"
 
+PACK_NAME="slack-$BRANCH-miniroot_$(date +%d%b%g)"
+
+# Temporary location where the root filesystem will be created:
+ROOTFS=$CWD/miniroot/
+
+TMP_PKG=$CWD/pkg
+mkdir -vpm755 {$TMP_PKG,$ROOTFS}
+
+# checked branch
+if [[ -z $PKG_URL ]] || [[ -z $PKG_DEV_URL ]]; then
+    dialog --title "error" --infobox \
+                   "variable is not set \"PKG_URL\" or \"PKG_DEV_URL\" in $PKG_FILE" \
+                   $TTY_Y $TTY_X
+    sleep 2
+    exit 1
+fi
 
 
 # checked branch
-if [[ $(wget -O - http://dl.fail.pp.ua/slackware/slackwarearm-$BRANCH/slackware/ 2>&1 | grep "Not Found") ]]; then
+if [[ $(wget -O - $PKG_URL 2>&1 | grep "Not Found") ]]; then
     dialog --title "error" --infobox "branch \"$BRANCH\" does not exist" $TTY_Y $TTY_X
     sleep 2
     exit 1
@@ -123,16 +126,27 @@ fi
 
 
 download_pkg() {
+    local _URL="$1"
+    local _PKG_LIST="$2"
+
+    # number of packages
+    local COUNT_PKG=$(echo $_PKG_LIST | wc -w)
+
     (
         processed=1
-        for pkg in $PKGLIST; do
+        for pkg in $_PKG_LIST; do
             pct=$(( $processed * 100 / $COUNT_PKG ))
             procent=${pct%.*}
             processed=$((processed+1))
             type_pkg=$(echo $pkg | cut -f1 -d "/")
             name_pkg=$(echo $pkg | cut -f2 -d "/")
-            PKG=$(wget -q -O - ${URL}/$type_pkg/ | grep -oP "($(echo $pkg | sed "s#\+#\\\+#")[\.\-\+\d\w]+.txz)" | head -n1)
-            wget -c -q -nc -nd -np ${URL}/$PKG -P $TMP_PKG/
+            # slackkit old packages as softfloat
+            if [[ $name_pkg == slackkit ]]; then
+                PKG=$(wget -q -O - ${_URL}/$type_pkg/ | grep -oP "($(echo $pkg | sed "s#\+#\\\+#")[\.\-\+\d\w]+.t?z)" | sort -u | head -n1)
+            else
+                PKG=$(wget -q -O - ${_URL}/$type_pkg/ | grep -oP "($(echo $pkg | sed "s#\+#\\\+#")[\.\-\+\d\w]+.t?z)" | sort -ur | head -n1)
+            fi
+            wget -c -q -nc -nd -np ${_URL}/$PKG -P $TMP_PKG/
             echo "XXX"
             echo $name_pkg
             echo "XXX"
@@ -143,11 +157,14 @@ download_pkg() {
 
 
 install_pkg() {
-    # Needed to find package names:
-    #shopt -s extglob
+    local _PKG_LIST="$1"
+    
+    # number of packages
+    local COUNT_PKG=$(echo $_PKG_LIST | wc -w)
+
     (
         processed=1
-        for pkg in $PKGLIST; do
+        for pkg in $_PKG_LIST; do
             pct=$(( $processed * 100 / $COUNT_PKG ))
             procent=${pct%.*}
             processed=$((processed+1))
@@ -231,10 +248,13 @@ fixing_glibc() {
 }
 
 
-
-download_pkg
-install_pkg
-#fixing_glibc
+# set URL PKG
+download_pkg "$PKG_URL" "$PKG_LIST"
+if [[ ! -z $PKG_DEV_URL ]]; then
+    download_pkg "$PKG_DEV_URL" "$PKG_DEV_LIST"
+fi
+install_pkg "$PKG_LIST"
+install_pkg "$PKG_DEV_LIST"
 set_chroot
 
 
@@ -379,8 +399,8 @@ sed -i 's?USE_DHCP\[0\]=.*?USE_DHCP\[0\]="yes"?g' etc/rc.d/rc.inet1.conf
 # this library is stored in the slackkit package.
 # [ -s /usr/lib/libfakeuname.so ] && cp -fav /usr/lib/libfakeuname.so usr/lib/
 cat << EOF > tmp/sshkeygen
-# export LD_PRELOAD=/usr/lib/libfakeuname.so
-# export FAKEUNAME=SlackwareARM-miniroot
+export LD_PRELOAD=/usr/lib/libfakeuname.so
+export FAKEUNAME=SlackwareARM-miniroot
 #
 #/usr/bin/ssh-keygen -t dsa -f /etc/ssh/ssh_host_dsa_key -N ''
 #/usr/bin/ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key -N ''
@@ -388,6 +408,9 @@ cat << EOF > tmp/sshkeygen
 # Use OpenSSH's own tool to generate the list of keys:
 /usr/bin/ssh-keygen -A | dialog --title "Generating SSH keys for the mini root" --progressbox $TTY_Y $TTY_X
 sleep 2
+export LD_PRELOAD=""
+rm /usr/share/slackdev/slackdev.config
+/sbin/removepkg slackkit 2>&1>/dev/null
 EOF
 chmod 755 tmp/sshkeygen
 chroot $ROOTFS /tmp/sshkeygen
