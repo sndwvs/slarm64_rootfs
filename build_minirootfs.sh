@@ -142,9 +142,9 @@ download_pkg() {
             name_pkg=$(echo $pkg | cut -f2 -d "/")
             # slackkit old packages as softfloat
             if [[ $name_pkg == slackkit ]]; then
-                PKG=$(wget -q -O - ${_URL}/$type_pkg/ | grep -oP "($(echo $pkg | sed "s#\+#\\\+#")[\.\-\+\d\w]+.t?z)" | sort -u | head -n1)
+            PKG=$(wget -q -O - ${_URL}/$type_pkg/ | grep -oP "$pkg-+([^-]+)-+([^-]+)-+([^-]+)(t?z)" | sort -u | head -n1)
             else
-                PKG=$(wget -q -O - ${_URL}/$type_pkg/ | grep -oP "($(echo $pkg | sed "s#\+#\\\+#")[\.\-\+\d\w]+.t?z)" | sort -ur | head -n1)
+        PKG=$(wget -q -O - ${_URL}/$type_pkg/ | grep -oP "$pkg-+([^-]+)-+([^-]+)-+([^-]+)(t?z)" | sort -ur | head -n1)
             fi
             wget -c -q -nc -nd -np ${_URL}/$PKG -P $TMP_PKG/
             echo "XXX"
