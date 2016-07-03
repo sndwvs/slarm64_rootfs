@@ -94,8 +94,8 @@ source $PKG_FILE
 
 # Set your host name:
 NEWHOST="slackware.localdomain"
-#ROOTPASS="$( mkpasswd -l 15 -d 3 -C 5 )"
-ROOTPASS="password"
+ROOTPASS="$( mkpasswd -l 15 -d 3 -C 5 )"
+#ROOTPASS="password"
 
 PACK_NAME="slack-$BRANCH-miniroot_$(date +%d%b%g)"
 
@@ -142,11 +142,11 @@ download_pkg() {
             name_pkg=$(echo $pkg | cut -f2 -d "/")
             # slackkit old packages as softfloat
             if [[ $name_pkg == slackkit ]]; then
-            PKG=$(wget -q -O - ${_URL}/$type_pkg/ | grep -oP "$pkg-+([^-]+)-+([^-]+)-+([^-]+)(t?z)" | sort -u | head -n1)
+                PKG=$(wget -q -O - ${_URL}${type_pkg}/ | cut -f2 -d '>' | cut -f1 -d '<' | egrep -o "^($(echo $name_pkg | sed 's/+/\\\+/g'))-+.*(t.z)" | sort -u | head -n1)
             else
-        PKG=$(wget -q -O - ${_URL}/$type_pkg/ | grep -oP "$pkg-+([^-]+)-+([^-]+)-+([^-]+)(t?z)" | sort -ur | head -n1)
+                PKG=$(wget -q -O - ${_URL}${type_pkg}/ | cut -f2 -d '>' | cut -f1 -d '<' | egrep -om1 "^($(echo $name_pkg | sed 's/+/\\\+/g'))-+.*(t.z)")
             fi
-            wget -c -q -nc -nd -np ${_URL}/$PKG -P $TMP_PKG/
+            wget -c -q -nc -nd -np ${_URL}$type_pkg/$PKG -P $TMP_PKG/
             echo "XXX"
             echo $name_pkg
             echo "XXX"
