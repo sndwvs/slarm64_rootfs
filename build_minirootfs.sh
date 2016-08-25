@@ -225,26 +225,48 @@ EOF
 
 
 fixing_glibc() {
-    pushd $ROOTFS/lib > /dev/null
-    ln -sf libnss_nis-2.24.so libnss_nis.so.2
-    ln -sf libm-2.24.so libm.so.6
-    ln -sf libnss_files-2.24.so libnss_files.so.2
-    ln -sf libresolv-2.24.so libresolv.so.2
-    ln -sf libnsl-2.24.so libnsl.so.1
-    ln -sf libutil-2.24.so libutil.so.1
-    ln -sf libnss_compat-2.24.so libnss_compat.so.2
-    ln -sf libthread_db-1.0.so libthread_db.so.1
-    ln -sf libnss_hesiod-2.24.so libnss_hesiod.so.2
-    ln -sf libanl-2.24.so libanl.so.1
-    ln -sf libcrypt-2.24.so libcrypt.so.1
-    ln -sf libBrokenLocale-2.24.so libBrokenLocale.so.1
-    ln -sf ld-2.24.so ld-linux-armhf.so.3
-    ln -sf libdl-2.24.so libdl.so.2
-    ln -sf libnss_dns-2.24.so libnss_dns.so.2
-    ln -sf libpthread-2.24.so libpthread.so.0
-    ln -sf libnss_nisplus-2.24.so libnss_nisplus.so.2
-    ln -sf libc-2.24.so libc.so.6
-    ln -sf librt-2.24.so librt.so.1
+    pushd $ROOTFS/lib > /dev/null   
+    if [[ $BRANCH == current ]]; then
+		ln -sf libnss_nis-2.24.so libnss_nis.so.2
+		ln -sf libm-2.24.so libm.so.6
+		ln -sf libnss_files-2.24.so libnss_files.so.2
+		ln -sf libresolv-2.24.so libresolv.so.2
+		ln -sf libnsl-2.24.so libnsl.so.1
+		ln -sf libutil-2.24.so libutil.so.1
+		ln -sf libnss_compat-2.24.so libnss_compat.so.2
+		ln -sf libthread_db-1.0.so libthread_db.so.1
+		ln -sf libnss_hesiod-2.24.so libnss_hesiod.so.2
+		ln -sf libanl-2.24.so libanl.so.1
+		ln -sf libcrypt-2.24.so libcrypt.so.1
+		ln -sf libBrokenLocale-2.24.so libBrokenLocale.so.1
+		ln -sf ld-2.24.so ld-linux-armhf.so.3
+		ln -sf libdl-2.24.so libdl.so.2
+		ln -sf libnss_dns-2.24.so libnss_dns.so.2
+		ln -sf libpthread-2.24.so libpthread.so.0
+		ln -sf libnss_nisplus-2.24.so libnss_nisplus.so.2
+		ln -sf libc-2.24.so libc.so.6
+		ln -sf librt-2.24.so librt.so.1
+	else	
+		ln -sf libnss_nis-2.23.so libnss_nis.so.2
+		ln -sf libm-2.23.so libm.so.6
+		ln -sf libnss_files-2.23.so libnss_files.so.2
+		ln -sf libresolv-2.23.so libresolv.so.2
+		ln -sf libnsl-2.23.so libnsl.so.1
+		ln -sf libutil-2.23.so libutil.so.1
+		ln -sf libnss_compat-2.23.so libnss_compat.so.2
+		ln -sf libthread_db-1.0.so libthread_db.so.1
+		ln -sf libnss_hesiod-2.23.so libnss_hesiod.so.2
+		ln -sf libanl-2.23.so libanl.so.1
+		ln -sf libcrypt-2.23.so libcrypt.so.1
+		ln -sf libBrokenLocale-2.23.so libBrokenLocale.so.1
+		ln -sf ld-2.23.so ld-linux.so.3
+		ln -sf libdl-2.23.so libdl.so.2
+		ln -sf libnss_dns-2.23.so libnss_dns.so.2
+		ln -sf libpthread-2.23.so libpthread.so.0
+		ln -sf libnss_nisplus-2.23.so libnss_nisplus.so.2
+		ln -sf libc-2.23.so libc.so.6
+		ln -sf librt-2.23.so librt.so.1
+	fi   
     popd > /dev/null
 }
 
