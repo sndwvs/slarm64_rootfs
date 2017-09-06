@@ -232,7 +232,14 @@ EOF
 
 
 fixing_glibc() {
-    pushd $ROOTFS/lib > /dev/null   
+    if [[ $ARCH == aarch64 ]];then
+        LIBSUFFIX=64
+        pushd $ROOTFS/lib > /dev/null
+        ln -sf /lib$LIBSUFFIX/ld-2.26.so ld-linux-aarch64.so.1
+        popd > /dev/null
+    fi
+
+    pushd $ROOTFS/lib$LIBSUFFIX > /dev/null
     if [[ $BRANCH == current ]]; then
 		ln -sf libnss_nis-2.26.so libnss_nis.so.2
 		ln -sf libm-2.26.so libm.so.6
@@ -246,7 +253,7 @@ fixing_glibc() {
 		ln -sf libanl-2.26.so libanl.so.1
 		ln -sf libcrypt-2.26.so libcrypt.so.1
 		ln -sf libBrokenLocale-2.26.so libBrokenLocale.so.1
-		ln -sf ld-2.26.so ld-linux-armhf.so.3
+		[[$ARCH == arm ]] && ln -sf ld-2.26.so ld-linux-armhf.so.3
 		ln -sf libdl-2.26.so libdl.so.2
 		ln -sf libnss_dns-2.26.so libnss_dns.so.2
 		ln -sf libpthread-2.26.so libpthread.so.0
@@ -273,7 +280,7 @@ fixing_glibc() {
 		ln -sf libnss_nisplus-2.23.so libnss_nisplus.so.2
 		ln -sf libc-2.23.so libc.so.6
 		ln -sf librt-2.23.so librt.so.1
-	fi   
+	fi
     popd > /dev/null
 }
 
@@ -481,7 +488,7 @@ EOF
 
 sleep 2
 
-if [[ $(uname -a | grep arm) ]]; then
+if [[ $(uname -a | grep "arm\|aarch64") ]]; then
    chroot $ROOTFS bin/bash -l
    echo "chroot finished." | dialog --title "message" --progressbox $TTY_Y $TTY_X
    sleep 2
