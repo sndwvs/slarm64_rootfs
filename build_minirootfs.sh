@@ -68,19 +68,22 @@ EOF
 fi
 
 
-case "$1" in
-    -b )
-        shift
-        BRANCH="$1"
-    ;;
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -b) BRANCH="$2"; shift 2;;
+    -a) ARCH="$2"; shift 2;;
     *)
-        echo -e "\nusage: $0 -b current\n"
+        echo -e "\nusage: $0 -b current -a aarch64\n"
         echo -e "Options:"
         echo -en "  -b"
-        echo -e "  to set the creation of mini rootfs selected branch \"current\", \"14.2\" and so on\n"
+        echo -e "  to set the creation of mini rootfs selected branch \"current\", \"14.2\" and so on"
+        echo -en "  -a"
+        echo -e "  set the processor architecture \"arm\" or \"aarch64\"\n"
         exit 1
     ;;
-esac
+  esac
+done
+
 
 PKG_FILE="packages-minirootfs.conf"
 
@@ -97,7 +100,7 @@ NEWHOST="slackware.localdomain"
 ROOTPASS="$( mkpasswd -l 15 -d 3 -C 5 )"
 #ROOTPASS="password"
 
-PACK_NAME="slack-$BRANCH-miniroot_$(date +%d%b%g)"
+PACK_NAME="slack-$BRANCH-$ARCH-miniroot_$(date +%d%b%g)"
 
 # Temporary location where the root filesystem will be created:
 ROOTFS=$CWD/miniroot/
@@ -198,9 +201,13 @@ set_chroot() {
     echo -1 > /proc/sys/fs/binfmt_misc/arm
 
     #sudo sh -c 'echo ":arm:M::\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-arm-static:" > /proc/sys/fs/binfmt_misc/register'
-    sudo sh -c 'echo ":arm:M::$(cat /var/lib/binfmts/qemu-arm | grep "magic\|mask\|interpreter" | cut -f2 -d " " | sed -e ":a;N;\$!ba;s/\n/:/g" -e "s/\(.*\):\(.*\):\(.*\)/\2:\3:\1:/")" > /proc/sys/fs/binfmt_misc/register'
+    if [[ $ARCH == arm ]]; then
+		sudo sh -c 'echo ":arm:M::$(cat /var/lib/binfmts/qemu-arm | grep "magic\|mask\|interpreter" | cut -f2 -d " " | sed -e ":a;N;\$!ba;s/\n/:/g" -e "s/\(.*\):\(.*\):\(.*\)/\2:\3:\1:/")" > /proc/sys/fs/binfmt_misc/register'
+	elif [[ $ARCH == aarch64 ]];then
+		sudo sh -c 'echo ":aarch64:M::$(cat /var/lib/binfmts/qemu-aarch64 | grep "magic\|mask\|interpreter" | cut -f2 -d " " | sed -e ":a;N;\$!ba;s/\n/:/g" -e "s/\(.*\):\(.*\):\(.*\)/\2:\3:\1:/")" > /proc/sys/fs/binfmt_misc/register'
+	fi
 
-    if [[ ! -x /usr/bin/qemu-arm-static ]]; then
+    if [[ ! -x /usr/bin/qemu-$ARCH-static ]]; then
         dialog --title "message" --progressbox $TTY_Y $TTY_X << EOF
 
 *****************************************************************
@@ -216,8 +223,8 @@ EOF
         exit 1
     fi
 
-    # Copy a HOST static qemu-arm inside arm root:
-    sudo cp /usr/bin/qemu-arm-static $ROOTFS/usr/bin
+    # Copy a HOST static qemu-arm or qemu-aarch64 inside arm root:
+    sudo cp /usr/bin/qemu-$ARCH-static $ROOTFS/usr/bin
 
 #    sudo chroot $ROOTFS bin/bash
 #    uname -a
@@ -227,25 +234,25 @@ EOF
 fixing_glibc() {
     pushd $ROOTFS/lib > /dev/null   
     if [[ $BRANCH == current ]]; then
-		ln -sf libnss_nis-2.25.so libnss_nis.so.2
-		ln -sf libm-2.25.so libm.so.6
-		ln -sf libnss_files-2.25.so libnss_files.so.2
-		ln -sf libresolv-2.25.so libresolv.so.2
-		ln -sf libnsl-2.25.so libnsl.so.1
-		ln -sf libutil-2.25.so libutil.so.1
-		ln -sf libnss_compat-2.25.so libnss_compat.so.2
+		ln -sf libnss_nis-2.26.so libnss_nis.so.2
+		ln -sf libm-2.26.so libm.so.6
+		ln -sf libnss_files-2.26.so libnss_files.so.2
+		ln -sf libresolv-2.26.so libresolv.so.2
+		ln -sf libnsl-2.26.so libnsl.so.1
+		ln -sf libutil-2.26.so libutil.so.1
+		ln -sf libnss_compat-2.26.so libnss_compat.so.2
 		ln -sf libthread_db-1.0.so libthread_db.so.1
-		ln -sf libnss_hesiod-2.25.so libnss_hesiod.so.2
-		ln -sf libanl-2.25.so libanl.so.1
-		ln -sf libcrypt-2.25.so libcrypt.so.1
-		ln -sf libBrokenLocale-2.25.so libBrokenLocale.so.1
-		ln -sf ld-2.25.so ld-linux-armhf.so.3
-		ln -sf libdl-2.25.so libdl.so.2
-		ln -sf libnss_dns-2.25.so libnss_dns.so.2
-		ln -sf libpthread-2.25.so libpthread.so.0
-		ln -sf libnss_nisplus-2.25.so libnss_nisplus.so.2
-		ln -sf libc-2.25.so libc.so.6
-		ln -sf librt-2.25.so librt.so.1
+		ln -sf libnss_hesiod-2.26.so libnss_hesiod.so.2
+		ln -sf libanl-2.26.so libanl.so.1
+		ln -sf libcrypt-2.26.so libcrypt.so.1
+		ln -sf libBrokenLocale-2.26.so libBrokenLocale.so.1
+		ln -sf ld-2.26.so ld-linux-armhf.so.3
+		ln -sf libdl-2.26.so libdl.so.2
+		ln -sf libnss_dns-2.26.so libnss_dns.so.2
+		ln -sf libpthread-2.26.so libpthread.so.0
+		ln -sf libnss_nisplus-2.26.so libnss_nisplus.so.2
+		ln -sf libc-2.26.so libc.so.6
+		ln -sf librt-2.26.so librt.so.1
 	else	
 		ln -sf libnss_nis-2.23.so libnss_nis.so.2
 		ln -sf libm-2.23.so libm.so.6
