@@ -137,7 +137,7 @@ download_pkg() {
 
     (
         processed=1
-        for pkg in $_PKG_LIST; do
+        for pkg in ${_PKG_LIST}; do
             pct=$(( $processed * 100 / $COUNT_PKG ))
             procent=${pct%.*}
             processed=$((processed+1))
@@ -162,21 +162,19 @@ download_pkg() {
 
 install_pkg() {
     local _PKG_LIST="$1"
-    
+
     # number of packages
     local COUNT_PKG=$(echo $_PKG_LIST | wc -w)
 
     (
         processed=1
-        for pkg in $_PKG_LIST; do
+        for pkg in ${_PKG_LIST}; do
             pct=$(( $processed * 100 / $COUNT_PKG ))
             procent=${pct%.*}
             processed=$((processed+1))
             name_pkg=$(echo $pkg | cut -f2 -d "/")
-            installpkg --root $ROOTFS $TMP_PKG/$name_pkg* 2>&1>/dev/null
-            if [[ $name_pkg == glibc-solibs ]]; then
-                fixing_glibc
-            fi
+            installpkg --root $ROOTFS $TMP_PKG/$name_pkg-* 2>&1>/dev/null
+            [[ $name_pkg == glibc-solibs ]] && fixing_glibc
             echo "XXX"
             echo $name_pkg
             echo "XXX"
@@ -198,14 +196,14 @@ set_chroot() {
     # If you have to write something, the third team can generate an error in the /proc/sys/fs/binfmt_misc/register:
     # -bash: echo: write error: Invalid argument
     # This command is corrected
-    echo -1 > /proc/sys/fs/binfmt_misc/arm
+    [[ ! -z $ARCH ]] && ( echo -1 > /proc/sys/fs/binfmt_misc/$ARCH )
 
     #sudo sh -c 'echo ":arm:M::\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x28\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-arm-static:" > /proc/sys/fs/binfmt_misc/register'
     if [[ $ARCH == arm ]]; then
-		sudo sh -c 'echo ":arm:M::$(cat /var/lib/binfmts/qemu-arm | grep "magic\|mask\|interpreter" | cut -f2 -d " " | sed -e ":a;N;\$!ba;s/\n/:/g" -e "s/\(.*\):\(.*\):\(.*\)/\2:\3:\1:/")" > /proc/sys/fs/binfmt_misc/register'
-	elif [[ $ARCH == aarch64 ]];then
-		sudo sh -c 'echo ":aarch64:M::$(cat /var/lib/binfmts/qemu-aarch64 | grep "magic\|mask\|interpreter" | cut -f2 -d " " | sed -e ":a;N;\$!ba;s/\n/:/g" -e "s/\(.*\):\(.*\):\(.*\)/\2:\3:\1:/")" > /proc/sys/fs/binfmt_misc/register'
-	fi
+            sudo sh -c 'echo ":arm:M::$(cat /var/lib/binfmts/qemu-arm | grep "magic\|mask\|interpreter" | cut -f2 -d " " | sed -e ":a;N;\$!ba;s/\n/:/g" -e "s/\(.*\):\(.*\):\(.*\)/\2:\3:\1:/")" > /proc/sys/fs/binfmt_misc/register'
+    elif [[ $ARCH == aarch64 ]];then
+            sudo sh -c 'echo ":aarch64:M::$(cat /var/lib/binfmts/qemu-aarch64 | grep "magic\|mask\|interpreter" | cut -f2 -d " " | sed -e ":a;N;\$!ba;s/\n/:/g" -e "s/\(.*\):\(.*\):\(.*\)/\2:\3:\1:/")" > /proc/sys/fs/binfmt_misc/register'
+    fi
 
     if [[ ! -x /usr/bin/qemu-$ARCH-static ]]; then
         dialog --title "message" --progressbox $TTY_Y $TTY_X << EOF
@@ -232,12 +230,10 @@ EOF
 
 
 fixing_glibc() {
-    if [[ $ARCH == aarch64 ]];then
-        LIBSUFFIX=64
-        pushd $ROOTFS/lib > /dev/null
-        ln -sf /lib$LIBSUFFIX/ld-2.26.so ld-linux-aarch64.so.1
-        popd > /dev/null
-    fi
+
+    [[ $ARCH == aarch64 ]] && export LIBSUFFIX=64
+
+    cp -a $ROOTFS/lib/lib* $ROOTFS/lib$LIBSUFFIX/
 
     pushd $ROOTFS/lib$LIBSUFFIX > /dev/null
     if [[ $BRANCH == current ]]; then
@@ -253,7 +249,11 @@ fixing_glibc() {
 		ln -sf libanl-2.26.so libanl.so.1
 		ln -sf libcrypt-2.26.so libcrypt.so.1
 		ln -sf libBrokenLocale-2.26.so libBrokenLocale.so.1
-		[[$ARCH == arm ]] && ln -sf ld-2.26.so ld-linux-armhf.so.3
+		[[ $ARCH == arm ]] && ln -sf ld-2.26.so ld-linux-armhf.so.3
+		if [[ $ARCH == aarch64 ]];then
+		    ln -sf ld-2.26.so ld-linux-aarch64.so.1
+		    ln -sf /lib$LIBSUFFIX/ld-2.26.so ../lib/ld-linux-aarch64.so.1
+		fi
 		ln -sf libdl-2.26.so libdl.so.2
 		ln -sf libnss_dns-2.26.so libnss_dns.so.2
 		ln -sf libpthread-2.26.so libpthread.so.0
@@ -287,13 +287,10 @@ fixing_glibc() {
 
 # set URL PKG
 download_pkg "$PKG_URL" "$PKG_LIST"
-if [[ ! -z $PKG_DEV_URL ]]; then
-    download_pkg "$PKG_DEV_URL" "$PKG_DEV_LIST"
-fi
+[[ ! -z $PKG_DEV_URL ]] && download_pkg "$PKG_DEV_URL" "$PKG_DEV_LIST"
 install_pkg "$PKG_LIST"
 install_pkg "$PKG_DEV_LIST"
 set_chroot
-
 
 #### Configure the system ############################################################
 
