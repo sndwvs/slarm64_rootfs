@@ -67,22 +67,32 @@ EOF
     exit 1
 fi
 
+# Duplicate file descriptor 1 on descriptor 3
+exec 3>&1
 
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    -b) BRANCH="$2"; shift 2;;
-    -a) ARCH="$2"; shift 2;;
-    *)
-        echo -e "\nusage: $0 -b current -a aarch64\n"
-        echo -e "Options:"
-        echo -en "  -b"
-        echo -e "  to set the creation of mini rootfs selected branch \"current\", \"14.2\" and so on"
-        echo -en "  -a"
-        echo -e "  set the processor architecture \"arm\" or \"aarch64\"\n"
-        exit 1
-    ;;
-  esac
-done
+# slackware branch
+result=$(dialog --title "slackware branch" \
+       --radiolist "select the creation of mini rootfs slackware branch" $TTY_Y $TTY_X $(($TTY_Y - 8)) \
+"current" "mainline branch" "on" \
+"14.2" "last stable branch" "off" \
+2>&1 1>&3)
+
+exit_status=$?
+
+BRANCH=$result
+
+
+result=$(dialog --title "cpu architecture" \
+       --radiolist "set the processor architecture" $TTY_Y $TTY_X $(($TTY_Y - 8)) \
+"aarch64" "ARMv8 64 bit" "on" \
+"arm" "ARMv7 32 bit" "off" \
+2>&1 1>&3)
+
+exit_status=$?
+# Close file descriptor 3
+exec 3>&-
+
+ARCH=$result
 
 
 PKG_FILE="packages-minirootfs.conf"
@@ -108,6 +118,9 @@ ROOTFS=$CWD/miniroot/
 TMP_PKG=$CWD/pkg
 mkdir -vpm755 {$TMP_PKG,$ROOTFS}
 
+# logging file
+LOG="$CWD/build.log"
+
 # checked branch
 if [[ -z $PKG_URL ]] || [[ -z $PKG_DEV_URL ]]; then
     dialog --title "error" --infobox \
@@ -126,6 +139,17 @@ if [[ $(wget -O - $PKG_URL 2>&1 | grep "Not Found") ]]; then
 fi
 
 
+clean() {
+    [[ -e $LOG ]] && rm $LOG
+    [[ -d $ROOTFS ]] && rm -rf $ROOTFS
+    [[ -d $TMP_PKG ]] && rm -rf $TMP_PKG
+}
+
+
+msg_error() {
+    dialog --title "error" --infobox "$1" $TTY_Y $TTY_X
+    sleep 2
+}
 
 
 download_pkg() {
@@ -134,7 +158,6 @@ download_pkg() {
 
     # number of packages
     local COUNT_PKG=$(echo $_PKG_LIST | wc -w)
-
     (
         processed=1
         for pkg in ${_PKG_LIST}; do
@@ -146,17 +169,35 @@ download_pkg() {
             # slackkit packages as hardfloat
             if [[ $name_pkg == slackkit && $BRANCH == current ]]; then
                 PKG=$(wget -q -O - ${_URL}${type_pkg}/ | cut -f2 -d '>' | cut -f1 -d '<' | egrep -o "^($(echo $name_pkg | sed 's/+/\\\+/g'))-+.*(t.z)" | sort -ur | head -n1)
+                if [[ $? == 1 ]]; then
+                    echo "download ${type_pkg}/$name_pkg" >> $LOG
+                    exit 1
+                fi
             else
                 # slackkit old packages as softfloat
                 PKG=$(wget -q -O - ${_URL}${type_pkg}/ | cut -f2 -d '>' | cut -f1 -d '<' | egrep -om1 "^($(echo $name_pkg | sed 's/+/\\\+/g'))-+.*(t.z)")
+                if [[ $? == 1 ]]; then
+                  echo "download ${type_pkg}/$name_pkg" >> $LOG
+                  exit 1
+                fi
             fi
-            wget -c -q -nc -nd -np ${_URL}$type_pkg/$PKG -P $TMP_PKG/
+            wget -c -q -nc -nd -np ${_URL}$type_pkg/$PKG -P $TMP_PKG/$ARCH
             echo "XXX"
             echo $name_pkg
             echo "XXX"
             printf '%.0f\n' ${procent}
         done
+
+        exit ${PIPESTATUS[0]} # exit with status message
+
     ) | dialog --title "Download packages" --gauge "Download package..." 6 $TTY_X
+
+    # if PIPESTATUS[0] is not equal to zero, it means there was an error
+    if [[ "${PIPESTATUS[0]}" -ne 0 ]]; then
+        # echo "There was an error. $(cat $LOG)" # display a message
+        msg_error "$(cat $LOG)"
+        exit 1  # exit with status 1
+    fi
 }
 
 
@@ -173,8 +214,8 @@ install_pkg() {
             procent=${pct%.*}
             processed=$((processed+1))
             name_pkg=$(echo $pkg | cut -f2 -d "/")
-            installpkg --root $ROOTFS $TMP_PKG/$name_pkg-* 2>&1>/dev/null
-            [[ $name_pkg == glibc-solibs ]] && fixing_glibc
+            installpkg --root $ROOTFS $TMP_PKG/$ARCH/$name_pkg-* 2>&1>/dev/null
+            [[ $name_pkg == glibc-solibs ]] && fixing_glibc $(echo $TMP_PKG/$ARCH/$name_pkg-* | rev | cut -d '-' -f3 | rev)
             echo "XXX"
             echo $name_pkg
             echo "XXX"
@@ -231,60 +272,68 @@ EOF
 
 fixing_glibc() {
 
-    [[ $ARCH == aarch64 ]] && export LIBSUFFIX=64
+    local _VERSION="$1"
 
-    cp -a $ROOTFS/lib/lib* $ROOTFS/lib$LIBSUFFIX/
+    [[ $ARCH == aarch64 ]] && export LIBSUFFIX=64
 
     pushd $ROOTFS/lib$LIBSUFFIX > /dev/null
     if [[ $BRANCH == current ]]; then
-		ln -sf libnss_nis-2.26.so libnss_nis.so.2
-		ln -sf libm-2.26.so libm.so.6
-		ln -sf libnss_files-2.26.so libnss_files.so.2
-		ln -sf libresolv-2.26.so libresolv.so.2
-		ln -sf libnsl-2.26.so libnsl.so.1
-		ln -sf libutil-2.26.so libutil.so.1
-		ln -sf libnss_compat-2.26.so libnss_compat.so.2
+		ln -sf libnss_nis-${_VERSION}.so libnss_nis.so.2
+		ln -sf libm-${_VERSION}.so libm.so.6
+		ln -sf libnss_files-${_VERSION}.so libnss_files.so.2
+		ln -sf libresolv-${_VERSION}.so libresolv.so.2
+		ln -sf libnsl-${_VERSION}.so libnsl.so.1
+		ln -sf libutil-${_VERSION}.so libutil.so.1
+		ln -sf libnss_compat-${_VERSION}.so libnss_compat.so.2
 		ln -sf libthread_db-1.0.so libthread_db.so.1
-		ln -sf libnss_hesiod-2.26.so libnss_hesiod.so.2
-		ln -sf libanl-2.26.so libanl.so.1
-		ln -sf libcrypt-2.26.so libcrypt.so.1
-		ln -sf libBrokenLocale-2.26.so libBrokenLocale.so.1
-		[[ $ARCH == arm ]] && ln -sf ld-2.26.so ld-linux-armhf.so.3
-		if [[ $ARCH == aarch64 ]];then
-		    ln -sf ld-2.26.so ld-linux-aarch64.so.1
-		    ln -sf /lib$LIBSUFFIX/ld-2.26.so ../lib/ld-linux-aarch64.so.1
+		ln -sf libnss_hesiod-${_VERSION}.so libnss_hesiod.so.2
+		ln -sf libanl-${_VERSION}.so libanl.so.1
+		ln -sf libcrypt-${_VERSION}.so libcrypt.so.1
+		ln -sf libBrokenLocale-${_VERSION}.so libBrokenLocale.so.1
+		if [[ $ARCH == arm ]];then 
+		    ln -sf ld-${_VERSION}.so ld-linux-armhf.so.3
+		    # fix sumlink for openssl package
+		    ln -sf libcrypto.so.1.0.0 libcrypto.so.1
 		fi
-		ln -sf libdl-2.26.so libdl.so.2
-		ln -sf libnss_dns-2.26.so libnss_dns.so.2
-		ln -sf libpthread-2.26.so libpthread.so.0
-		ln -sf libnss_nisplus-2.26.so libnss_nisplus.so.2
-		ln -sf libc-2.26.so libc.so.6
-		ln -sf librt-2.26.so librt.so.1
+		if [[ $ARCH == aarch64 ]];then
+		    ln -sf ld-${_VERSION}.so ld-linux-aarch64.so.1
+		    ln -sf /lib$LIBSUFFIX/ld-${_VERSION}.so ../lib/ld-linux-aarch64.so.1
+		fi
+		ln -sf libdl-${_VERSION}.so libdl.so.2
+		ln -sf libnss_dns-${_VERSION}.so libnss_dns.so.2
+		ln -sf libpthread-${_VERSION}.so libpthread.so.0
+		ln -sf libnss_nisplus-${_VERSION}.so libnss_nisplus.so.2
+		ln -sf libc-${_VERSION}.so libc.so.6
+		ln -sf librt-${_VERSION}.so librt.so.1
 	else	
-		ln -sf libnss_nis-2.23.so libnss_nis.so.2
-		ln -sf libm-2.23.so libm.so.6
-		ln -sf libnss_files-2.23.so libnss_files.so.2
-		ln -sf libresolv-2.23.so libresolv.so.2
-		ln -sf libnsl-2.23.so libnsl.so.1
-		ln -sf libutil-2.23.so libutil.so.1
-		ln -sf libnss_compat-2.23.so libnss_compat.so.2
+		ln -sf libnss_nis-${_VERSION}.so libnss_nis.so.2
+		ln -sf libm-${_VERSION}.so libm.so.6
+		ln -sf libnss_files-${_VERSION}.so libnss_files.so.2
+		ln -sf libresolv-${_VERSION}.so libresolv.so.2
+		ln -sf libnsl-${_VERSION}.so libnsl.so.1
+		ln -sf libutil-${_VERSION}.so libutil.so.1
+		ln -sf libnss_compat-${_VERSION}.so libnss_compat.so.2
 		ln -sf libthread_db-1.0.so libthread_db.so.1
-		ln -sf libnss_hesiod-2.23.so libnss_hesiod.so.2
-		ln -sf libanl-2.23.so libanl.so.1
-		ln -sf libcrypt-2.23.so libcrypt.so.1
-		ln -sf libBrokenLocale-2.23.so libBrokenLocale.so.1
-		ln -sf ld-2.23.so ld-linux.so.3
-		ln -sf libdl-2.23.so libdl.so.2
-		ln -sf libnss_dns-2.23.so libnss_dns.so.2
-		ln -sf libpthread-2.23.so libpthread.so.0
-		ln -sf libnss_nisplus-2.23.so libnss_nisplus.so.2
-		ln -sf libc-2.23.so libc.so.6
-		ln -sf librt-2.23.so librt.so.1
+		ln -sf libnss_hesiod-${_VERSION}.so libnss_hesiod.so.2
+		ln -sf libanl-${_VERSION}.so libanl.so.1
+		ln -sf libcrypt-${_VERSION}.so libcrypt.so.1
+		ln -sf libBrokenLocale-${_VERSION}.so libBrokenLocale.so.1
+		ln -sf ld-${_VERSION}.so ld-linux.so.3
+		ln -sf libdl-${_VERSION}.so libdl.so.2
+		ln -sf libnss_dns-${_VERSION}.so libnss_dns.so.2
+		ln -sf libpthread-${_VERSION}.so libpthread.so.0
+		ln -sf libnss_nisplus-${_VERSION}.so libnss_nisplus.so.2
+		ln -sf libc-${_VERSION}.so libc.so.6
+		ln -sf librt-${_VERSION}.so librt.so.1
 	fi
     popd > /dev/null
 }
 
 
+
+
+# first clean
+clean
 # set URL PKG
 download_pkg "$PKG_URL" "$PKG_LIST"
 [[ ! -z $PKG_DEV_URL ]] && download_pkg "$PKG_DEV_URL" "$PKG_DEV_LIST"
@@ -544,8 +593,7 @@ EOF
 
 
 # deleting old files
-rm -rf $ROOTFS || exit 1
-rm -rf $TMP_PKG || exit 1
+clean
 
 cat $CWD/${PACK_NAME}_details.txt | dialog --title "message" --progressbox $TTY_Y $TTY_X
 sleep 2
