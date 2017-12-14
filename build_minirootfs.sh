@@ -107,7 +107,7 @@ source $PKG_FILE
 
 # Set your host name:
 NEWHOST="slackware.localdomain"
-ROOTPASS="$( mkpasswd -l 15 -d 3 -C 5 )"
+ROOTPASS="$( < /dev/urandom tr -dc '#$!_A-Z-a-z-0-9' | head -c${1:-15} ; echo ; )"
 #ROOTPASS="password"
 
 PACK_NAME="slack-$BRANCH-$ARCH-miniroot_$(date +%d%b%g)"
