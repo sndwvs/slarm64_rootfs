@@ -4,4 +4,4 @@ adapted script [build_minirootfs.sh](http://slackware.uk/slackwarearm/slackwarea
 
 current mini rootfs: http://dl.fail.pp.ua/slackware/minirootfs/
 
-last update: **Thu Dec 14 00:18:47 UTC 2017**
+last update: **Tue Mar  6 20:26:30 UTC 2018**
