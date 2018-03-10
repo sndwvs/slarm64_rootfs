@@ -22,7 +22,7 @@ set +o posix
 #  ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 ##############################################################################
-# Script : build_minirootfs.sh
+# Script : miniroot.build
 # Purpose: Build a mini Slackware root filesystem.
 #          The mini root filesystem is a useful tool for embedded developers
 #          who want a pre-made basic system from which to build on, or to
@@ -95,7 +95,7 @@ exec 3>&-
 ARCH=$result
 
 
-PKG_FILE="packages-minirootfs.conf"
+PKG_FILE="packages-miniroot.conf"
 
 if [[ ! -f $PKG_FILE ]]; then
     dialog --title "error" --infobox "no configuration packet file" $TTY_Y $TTY_X

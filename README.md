@@ -1,6 +1,6 @@
 # README #
 
-adapted script [build_minirootfs.sh](http://slackware.uk/slackwarearm/slackwarearm-devtools/minirootfs/scripts/build_minirootfs.sh) for creation on **x86_64** and **x86** systems
+adapted script [miniroot.build](http://slackware.uk/slackwarearm/slackwarearm-devtools/minirootfs/scripts/miniroot.build) for creation on **x86_64** and **x86** systems
 
 current mini rootfs: http://dl.fail.pp.ua/slackware/minirootfs/
 
