@@ -105,6 +105,8 @@ fi
 
 source $PKG_FILE
 
+HOST_ARCH=$(uname -m)
+
 # Set your host name:
 NEWHOST="slackware.localdomain"
 ROOTPASS="$( < /dev/urandom tr -dc '#$!_A-Z-a-z-0-9' | head -c${1:-15} ; echo ; )"
@@ -168,14 +170,14 @@ download_pkg() {
             name_pkg=$(echo $pkg | cut -f2 -d "/")
             # slackkit packages as hardfloat
             if [[ $name_pkg == slackkit && $BRANCH == current ]]; then
-                PKG=$(wget -q -O - ${_URL}${type_pkg}/ | cut -f2 -d '>' | cut -f1 -d '<' | egrep -o "^($(echo $name_pkg | sed 's/+/\\\+/g'))-+.*(t.z)" | sort -ur | head -n1)
+                PKG=$(wget -q -O - ${_URL}${type_pkg}/ | cut -f7 -d '>' | cut -f1 -d '<' | egrep -o "^($(echo $name_pkg | sed 's/+/\\\+/g'))-+.*(t.z)" | sort -ur | head -n1)
                 if [[ $? == 1 ]]; then
                     echo "download ${type_pkg}/$name_pkg" >> $LOG
                     exit 1
                 fi
             else
                 # slackkit old packages as softfloat
-                PKG=$(wget -q -O - ${_URL}${type_pkg}/ | cut -f2 -d '>' | cut -f1 -d '<' | egrep -om1 "^($(echo $name_pkg | sed 's/+/\\\+/g'))-+.*(t.z)")
+                PKG=$(wget -q -O - ${_URL}${type_pkg}/ | cut -f7 -d '>' | cut -f1 -d '<' | egrep -om1 "^($(echo $name_pkg | sed 's/+/\\\+/g'))-+.*(t.z)")
                 if [[ $? == 1 ]]; then
                   echo "download ${type_pkg}/$name_pkg" >> $LOG
                   exit 1
@@ -339,7 +341,7 @@ download_pkg "$PKG_URL" "$PKG_LIST"
 [[ ! -z $PKG_DEV_URL ]] && download_pkg "$PKG_DEV_URL" "$PKG_DEV_LIST"
 install_pkg "$PKG_LIST"
 install_pkg "$PKG_DEV_LIST"
-set_chroot
+[[ ! $HOST_ARCH =~ arm|aarch64 ]] && set_chroot
 
 #### Configure the system ############################################################
 
@@ -534,7 +536,7 @@ EOF
 
 sleep 2
 
-if [[ $(uname -a | grep "arm\|aarch64") ]]; then
+if [[ ! $HOST_ARCH =~ arm|aarch64 ]] && [[ $(uname -m | grep "arm\|aarch64") ]]; then
    chroot $ROOTFS bin/bash -l
    echo "chroot finished." | dialog --title "message" --progressbox $TTY_Y $TTY_X
    sleep 2
