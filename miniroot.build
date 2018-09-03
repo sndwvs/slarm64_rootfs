@@ -105,7 +105,11 @@ fi
 
 source $PKG_FILE
 
-HOST_ARCH=$(uname -m)
+MARCH=$( uname -m )
+case "$MARCH" in
+    arm*)    export HOST_ARCH=arm ;;
+    *)       export HOST_ARCH=$MARCH ;;
+esac
 
 # Set your host name:
 NEWHOST="slackware.localdomain"
@@ -170,7 +174,7 @@ download_pkg() {
             name_pkg=$(echo $pkg | cut -f2 -d "/")
             # slackkit packages as hardfloat
             if [[ $name_pkg == slackkit && $BRANCH == current ]]; then
-                PKG=$(wget -q -O - ${_URL}${type_pkg}/ | cut -f7 -d '>' | cut -f1 -d '<' | egrep -o "^($(echo $name_pkg | sed 's/+/\\\+/g'))-+.*(t.z)" | sort -ur | head -n1)
+                PKG=$(wget -q -O - ${_URL}${type_pkg}/ | grep -oP '(?<=txz\">).*(?=\<)' | sort -ur | head -n1)
                 if [[ $? == 1 ]]; then
                     echo "download ${type_pkg}/$name_pkg" >> $LOG
                     exit 1
