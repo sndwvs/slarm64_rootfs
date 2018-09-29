@@ -174,7 +174,7 @@ download_pkg() {
             name_pkg=$(echo $pkg | cut -f2 -d "/")
             # slackkit packages as hardfloat
             if [[ $name_pkg == slackkit && $BRANCH == current ]]; then
-                PKG=$(wget -q -O - ${_URL}${type_pkg}/ | grep -oP '(?<=txz\">).*(?=\<)' | sort -ur | head -n1)
+                PKG=$(wget -q -O - ${_URL}${type_pkg}/ | grep -oP '(?<=txz\">).*(?=\</a)' | sort -ur | head -n1)
                 if [[ $? == 1 ]]; then
                     echo "download ${type_pkg}/$name_pkg" >> $LOG
                     exit 1
