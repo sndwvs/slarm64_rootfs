@@ -1,0 +1,408 @@
+#!/bin/sh
+
+set +o posix
+
+# Copyright 2010,2015,2016  Stuart Winter, Surrey, England, UK.
+# All rights reserved.
+#
+# Redistribution and use of this script, with or without modification, is
+# permitted provided that the following conditions are met:
+#
+# 1. Redistributions of this script must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#
+#  THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
+#  WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+#  MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO
+#  EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+#  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+#  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+#  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+#  WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+#  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+#  ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+##############################################################################
+# Script : miniroot.build
+# Purpose: Build a mini Slackware root filesystem.
+#          The mini root filesystem is a useful tool for embedded developers
+#          who want a pre-made basic system from which to build on, or to
+#          have a small but working OS to squeeze onto a low capacity
+#          storage device such as NAND.
+#          One of the other features is that it can be used in the bootstrap
+#          process of supporting a new device.
+# Author:  Stuart Winter <mozes@slackware.com>
+# Date::   04-Feb-2010
+###############################################################################
+
+##############################################################################
+# Changes: Script adapted for assembly on x86 systems, x86_64
+# Author:  mara <mara@fail.pp.ua>
+# Date::   2016-06-28
+##############################################################################
+
+##############################################################################
+# Changes: script for the architecture of AArch64 distribution slarm64
+#          (unofficial port slackware)
+# Author:  mara <mara@fail.pp.ua>
+# Date::   2019-02-24
+##############################################################################
+
+
+
+
+export LC_ALL=C
+
+CWD=$(pwd)
+
+MARCH=$( uname -m )
+case "$MARCH" in
+    arm*)    export ARCH=arm ;;
+    *)       export ARCH=$MARCH ;;
+esac
+
+#---------------------------------------------
+# configuration
+#---------------------------------------------
+DISTR="slarm64"
+NEWHOST="$DISTR.localdomain"
+ROOTPASS="$( < /dev/urandom tr -dc '#$!_A-Z-a-z-0-9' | head -c${1:-15} ; echo ; )"
+
+# Temporary location where the root filesystem will be created:
+ROOTFS="$CWD/rootfs"
+
+TMP_PKG="$CWD/pkgs"
+
+# logging file
+LOG="$CWD/build.log"
+
+PKG_FILE="$CWD/packages.conf"
+#---------------------------------------------
+
+
+
+
+
+clean() {
+    [[ -e $LOG ]] && rm $LOG
+    [[ -d $ROOTFS ]] && rm -rf $ROOTFS
+    [[ -d $TMP_PKG ]] && rm -rf $TMP_PKG
+}
+
+
+#---------------------------------------------
+# display message
+#---------------------------------------------
+message() {
+    # parametr 1 - type message
+    #     "err"  - error
+    #     "info" - info (default is empty)
+    # parametr 2 - action message
+    # parametr 3 - text message
+
+    if [[ ! -z "$2" ]]; then ACTION="$2"; else unset ACTION; fi
+    if [[ ! -z "$3" ]]; then MESSAGE="$3"; else unset MESSAGE; fi
+
+    if [[ "$1" == "err" ]]; then
+        #printf '|\e[0;31m %s  \x1B[0m| \e[0;32m%-12s\x1B[0m %s\n' "$1" "$ACTION" "$LOG"
+        printf '|\e[0;31m %s\x1B[0m| \e[0;32m%-8s\x1B[0m %s\n' "$1" "$ACTION" "$MESSAGE"
+    elif [[ "$1" == "info" || -z "$1" ]]; then
+        printf '|\e[0;36minfo\x1B[0m| \e[0;32m%-8s\x1B[0m %s\n' "$ACTION" "$MESSAGE"
+    fi
+}
+
+
+menu_branch() {
+    PS3='choose version: '
+    options=("current" "14.2" "quit")
+    select opt in "${options[@]}"
+    do
+        case "$opt" in
+            "14.2")
+                    BRANCH="$opt"
+                    break
+                ;;
+         "current")
+                    BRANCH="$opt"
+                    break
+                ;;
+            "quit")
+                    break
+                ;;
+                 *)
+                    echo "invalid option $REPLY"
+                ;;
+        esac
+    done
+}
+
+
+download_pkg() {
+    # get parameters
+    local url="$1"
+    local packages=( $(cat $PKG_FILE  | grep -v "^#") )
+
+    for pkg in ${packages[*]}; do
+        category=$(echo $pkg | cut -f1 -d "/")
+        pkg=$(echo $pkg | cut -f2 -d "/")
+        if [[ ! -z ${pkg} ]];then
+            PKG_NAME=($(wget -q -O - ${url}/${category}/ | cut -f7 -d '>' | cut -f1 -d '<' | egrep -o "(^$(echo $pkg | sed 's/+/\\\+/g'))-.*(t.z)" | sort -ur))
+            for raw in ${PKG_NAME[*]};do
+               [[ $(echo $raw | rev | cut -d '-' -f4- | rev | grep -ox $pkg) ]] && _PKG_NAME=$raw
+            done
+
+            [[ -z ${_PKG_NAME} ]] && ( echo "empty download package ${category}/$pkg" >> $LOG 2>&1 && message "err" "details" && exit 1 )
+
+            message "" "download" "package $category/${_PKG_NAME}"
+            wget -c -nc -nd -np ${url}/${category}/${_PKG_NAME} -P $TMP_PKG/${type}/${category}/ >> $LOG 2>&1 || (message "err" "details" && exit 1) || exit 1
+            unset _PKG_NAME
+        fi
+    done
+}
+
+
+install_pkg(){
+    local packages=( $(cat $PKG_FILE  | grep -v "^#") )
+
+    for pkg in ${packages[*]}; do
+        category=$(echo $pkg | cut -f1 -d "/")
+        pkg=$(echo $pkg | cut -f2 -d "/")
+        if [[ ! -z ${pkg} ]];then
+            message "" "install" "package $category/${pkg}"
+            ROOT=$ROOTFS upgradepkg --install-new $TMP_PKG/${type}/$category/${pkg}-* >> $LOG 2>&1 || (message "err" "details" && exit 1) || exit 1
+        fi
+    done
+}
+
+
+fixing_glibc() {
+
+    local _VERSION="$1"
+
+    [[ $ARCH == aarch64 ]] && export LIBSUFFIX=64
+
+    pushd $ROOTFS/lib$LIBSUFFIX > /dev/null
+    if [[ $BRANCH == current ]]; then
+        ln -sf libnss_nis-${_VERSION}.so libnss_nis.so.2
+        ln -sf libm-${_VERSION}.so libm.so.6
+        ln -sf libnss_files-${_VERSION}.so libnss_files.so.2
+        ln -sf libresolv-${_VERSION}.so libresolv.so.2
+        ln -sf libnsl-${_VERSION}.so libnsl.so.1
+        ln -sf libutil-${_VERSION}.so libutil.so.1
+        ln -sf libnss_compat-${_VERSION}.so libnss_compat.so.2
+        ln -sf libthread_db-1.0.so libthread_db.so.1
+        ln -sf libnss_hesiod-${_VERSION}.so libnss_hesiod.so.2
+        ln -sf libanl-${_VERSION}.so libanl.so.1
+        ln -sf libcrypt-${_VERSION}.so libcrypt.so.1
+        ln -sf libBrokenLocale-${_VERSION}.so libBrokenLocale.so.1
+        if [[ $ARCH == arm ]];then 
+            ln -sf ld-${_VERSION}.so ld-linux-armhf.so.3
+            # fix sumlink for openssl package
+            ln -sf libcrypto.so.1.0.0 libcrypto.so.1
+        fi
+        if [[ $ARCH == aarch64 ]];then
+            ln -sf ld-${_VERSION}.so ld-linux-aarch64.so.1
+            ln -sf /lib$LIBSUFFIX/ld-${_VERSION}.so ../lib/ld-linux-aarch64.so.1
+        fi
+        ln -sf libdl-${_VERSION}.so libdl.so.2
+        ln -sf libnss_dns-${_VERSION}.so libnss_dns.so.2
+        ln -sf libpthread-${_VERSION}.so libpthread.so.0
+        ln -sf libnss_nisplus-${_VERSION}.so libnss_nisplus.so.2
+        ln -sf libc-${_VERSION}.so libc.so.6
+        ln -sf librt-${_VERSION}.so librt.so.1
+    else    
+        ln -sf libnss_nis-${_VERSION}.so libnss_nis.so.2
+        ln -sf libm-${_VERSION}.so libm.so.6
+        ln -sf libnss_files-${_VERSION}.so libnss_files.so.2
+        ln -sf libresolv-${_VERSION}.so libresolv.so.2
+        ln -sf libnsl-${_VERSION}.so libnsl.so.1
+        ln -sf libutil-${_VERSION}.so libutil.so.1
+        ln -sf libnss_compat-${_VERSION}.so libnss_compat.so.2
+        ln -sf libthread_db-1.0.so libthread_db.so.1
+        ln -sf libnss_hesiod-${_VERSION}.so libnss_hesiod.so.2
+        ln -sf libanl-${_VERSION}.so libanl.so.1
+        ln -sf libcrypt-${_VERSION}.so libcrypt.so.1
+        ln -sf libBrokenLocale-${_VERSION}.so libBrokenLocale.so.1
+        ln -sf ld-${_VERSION}.so ld-linux.so.3
+        ln -sf libdl-${_VERSION}.so libdl.so.2
+        ln -sf libnss_dns-${_VERSION}.so libnss_dns.so.2
+        ln -sf libpthread-${_VERSION}.so libpthread.so.0
+        ln -sf libnss_nisplus-${_VERSION}.so libnss_nisplus.so.2
+        ln -sf libc-${_VERSION}.so libc.so.6
+        ln -sf librt-${_VERSION}.so librt.so.1
+    fi
+    popd > /dev/null
+}
+
+
+ 
+[[ $EUID -ne 0 ]] && message  "err" "stop" "this script must be run as root or sudo" && exit 1
+
+[[ ! -f $PKG_FILE ]] && message  "err" "stop" "no configuration packet file" && exit 1
+
+menu_branch
+
+message  "" "selected" "distributive \"$DISTR\" version \"$BRANCH\" architecture \"$ARCH\""
+
+#---------------------------------------------
+# configuration
+#---------------------------------------------
+PACK_NAME="$DISTR-$BRANCH-$ARCH-rootfs-$(date +%d%b%g)"
+PKG_URL="http://dl.fail.pp.ua/slackware/$DISTR-$BRANCH/$DISTR"
+#---------------------------------------------
+
+# first clean
+clean
+mkdir -pm755 {$TMP_PKG,$ROOTFS}
+
+download_pkg "$PKG_URL"
+install_pkg
+
+
+cd $ROOTFS
+
+# Create fstab.
+cat << EOF > etc/fstab
+#
+# /etc/fstab: static file system information
+#
+# <file system>        <mount point>   <type>  <options>                        <dump> <pass>
+shm                    /dev/shm        tmpfs   defaults                         0      0
+devpts                 /dev/pts        devpts  noexec,nosuid,gid=tty,mode=0620  0      0
+sysfs                  /sys            sysfs   defaults                         0      0
+proc                   /proc           proc    defaults                         0      0
+#
+#/dev/#EXT4FS_BOOT#    /boot           ext4    errors=remount-ro                0      1
+#/dev/#SWAP#           swap            swap    defaults                         0      0
+#/dev/#EXT4FS_ROOT#    /               ext4    errors=remount-ro                0      1
+#/dev/#EXT4FS_HOME#    /home           ext4    defaults                         0      2
+
+EOF
+
+# update your resolver details:
+cat << EOF > etc/resolv.conf
+#
+# /etc/resolv.conf: resolver configuration file
+#
+
+#search <domain.org>
+#nameserver <ip-address>
+
+EOF
+
+# we include SSHd and RPC:
+chmod +x etc/rc.d/rc.{ssh*,rpc}
+
+# set the timezone to Europe/Helsinki.
+# you should use '/usr/sbin/timeconfig' to change this.
+( cd etc
+  cat << EOF > hardwareclock
+# /etc/hardwareclock
+#
+# tells how the hardware clock time is stored.
+# you should run timeconfig to edit this file.
+
+localtime
+EOF
+
+  rm -f localtime*
+  ln -vfs /usr/share/zoneinfo/UTC localtime-copied-from
+  cp -favv $ROOTFS/usr/share/zoneinfo/UTC localtime ) 2>&1>/dev/null
+
+# set the keymap:
+# we'll set this to the US keymap,
+# you might want to change it to your own locale.
+cat << EOF > etc/rc.d/rc.keymap
+#!/bin/sh
+# load the keyboard map.
+# more maps are in /usr/share/kbd/keymaps.
+if [ -x /usr/bin/loadkeys ]; then
+ /usr/bin/loadkeys us.map
+fi
+EOF
+chmod 755 etc/rc.d/rc.keymap
+
+# set the host name:
+echo $NEWHOST > etc/HOSTNAME
+
+# update fonts so that X and xVNC will work:
+if [ -d usr/share/fonts/ ]; then
+   ( cd usr/share/fonts/
+     find . -type d -mindepth 1 -maxdepth 1 | while read dir ; do
+     ( cd $dir
+        mkfontscale .
+        mkfontdir . )
+     done
+   /usr/bin/fc-cache -f )
+fi
+
+# set default window manager to WindowMaker because it's light weight.
+if [ -d etc/X11/xinit/ ]; then
+   ( cd etc/X11/xinit/
+     ln -vfs xinitrc.wmaker xinitrc )
+fi
+
+# allow root login on the first serial port
+sed -i 's?^#ttyS0?ttyS0?' etc/securetty
+# start a login on the first serial port:
+grep -q '^s0:.*ttyS0.*vt100' etc/inittab || sed -i '/^# Local serial lines:/ a\s0:12345:respawn:/sbin/agetty 115200 ttyS0 vt100' etc/inittab
+
+# set root password:
+cat << EOF > tmp/setrootpw
+/usr/bin/echo "root:${ROOTPASS}" | /usr/sbin/chpasswd
+chage -d 0 root
+EOF
+chmod 755 tmp/setrootpw
+chroot $ROOTFS /tmp/setrootpw
+rm -f tmp/setrootpw
+
+# write out the build date of this image:
+cat << EOF > root/rootfs_build_date
+This mini root filesystem was built on:
+$( date -u )
+EOF
+
+# set eth0 to be DHCP by default
+sed -i 's?USE_DHCP\[0\]=.*?USE_DHCP\[0\]="yes"?g' etc/rc.d/rc.inet1.conf
+
+cat << EOF > etc/e2fsck.conf
+# these options stop e2fsck from erroring/requiring manual intervention
+# when it encounters bad time stamps on filesystems -- which happens on
+# the Versatile platform because QEMU does not have RTC (real time clock)
+# support.
+#
+[options]
+        accept_time_fudge = 1
+        broken_system_clock = 1
+EOF
+
+# clean up anything left over from the test within the chroot:
+rm -f root/.bash_history
+
+message  "" "message" "create archive. this may take some time..."
+
+pushd $ROOTFS > /dev/null
+tar -pcJf $CWD/$PACK_NAME.tar.xz .
+popd > /dev/null
+
+message  "" "message" "generating details file, including SHA1SUM..."
+
+cat << EOF > $CWD/${PACK_NAME}.info.txt
+
+This is a rootfs for "$DISTR" architecture "$ARCH" branch "$BRANCH".
+Generated on $( date -u )
+
+The login details are:
+User....: root
+Password: $ROOTPASS
+
+The SHA1SUM of the rootfs filesystem archive:
+$( pushd $CWD > /dev/null && sha1sum $PACK_NAME.tar.xz ; popd > /dev/null )
+
+Uncompressed size: $( du -sh $ROOTFS | awk '{print $1}' )
+
+EOF
+
+# deleting old files
+clean
+

@@ -1,7 +1,7 @@
 # README #
 
-adapted script [miniroot.build](http://slackware.uk/slackwarearm/slackwarearm-devtools/minirootfs/scripts/miniroot.build) for creation on **x86_64** and **x86** systems
+adapted script [miniroot.build](http://slackware.uk/slackwarearm/slackwarearm-devtools/minirootfs/scripts/miniroot.build) for the architecture of AArch64 distribution slarm64 (unofficial port slackware)
 
-current mini rootfs: http://dl.fail.pp.ua/slackware/minirootfs/
+current rootfs: http://dl.fail.pp.ua/slackware/rootfs/
 
-last update: **Fri Jan  4 18:38:23 UTC 2019**
+last update: **Sun Feb 24 09:59:27 UTC 2019**
