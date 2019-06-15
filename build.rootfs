@@ -248,7 +248,7 @@ message  "" "selected" "distributive \"$DISTR\" version \"$BRANCH\" architecture
 # configuration
 #---------------------------------------------
 PACK_NAME="$DISTR-$BRANCH-$ARCH-rootfs-$(date +%d%b%g)"
-PKG_URL="http://dl.fail.pp.ua/slackware/$DISTR-$BRANCH/$DISTR"
+PKG_URL="http://dl.fail.pp.ua/slarm64/$DISTR-$BRANCH/$DISTR"
 #---------------------------------------------
 
 # first clean
