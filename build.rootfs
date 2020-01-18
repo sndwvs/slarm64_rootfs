@@ -247,7 +247,7 @@ message  "" "selected" "distributive \"$DISTR\" version \"$BRANCH\" architecture
 #---------------------------------------------
 # configuration
 #---------------------------------------------
-PACK_NAME="$DISTR-$BRANCH-$ARCH-rootfs-$(date +%d%b%g)"
+PACK_NAME="$DISTR-$BRANCH-$ARCH-rootfs-$(date +%Y%m%d)"
 PKG_URL="http://dl.fail.pp.ua/slarm64/$DISTR-$BRANCH/$DISTR"
 #---------------------------------------------
 
