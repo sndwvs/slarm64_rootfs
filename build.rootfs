@@ -349,7 +349,7 @@ grep -q '^s0:.*ttyS0.*vt100' etc/inittab || sed -i '/^# Local serial lines:/ a\s
 
 # set root password:
 cat << EOF > tmp/setrootpw
-/usr/bin/echo "root:${ROOTPASS}" | /usr/sbin/chpasswd
+/usr/bin/echo -e "${ROOTPASS}\n${ROOTPASS}" | /usr/bin/passwd root
 chage -d 0 root
 EOF
 chmod 755 tmp/setrootpw
