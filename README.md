@@ -4,4 +4,4 @@ adapted script [miniroot.build](http://slackware.uk/slackwarearm/slackwarearm-de
 
 current rootfs: http://dl.fail.pp.ua/slackware/rootfs/
 
-last update: **Thu May 28 17:09:49 UTC 2020**
+last update: **Sun Jun 28 11:34:43 UTC 2020**
