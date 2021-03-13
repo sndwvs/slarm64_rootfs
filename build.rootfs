@@ -64,7 +64,11 @@ esac
 #---------------------------------------------
 # configuration
 #---------------------------------------------
-DISTR="slarm64"
+if [[ $MARCH == aarch64 ]]; then
+    DISTR="slarm64"
+elif [[ $MARCH == riscv64 ]]; then
+    DISTR="slarm64-$MARCH"
+fi
 NEWHOST="$DISTR.localdomain"
 ROOTPASS="$( < /dev/urandom tr -dc '#$!_A-Z-a-z-0-9' | head -c${1:-15} ; echo ; )"
 
@@ -119,6 +123,10 @@ menu_branch() {
     do
         case "$opt" in
             "14.2")
+                    BRANCH="$opt"
+                    break
+                ;;
+            "15.0")
                     BRANCH="$opt"
                     break
                 ;;
@@ -210,7 +218,7 @@ fixing_glibc() {
         ln -sf libnss_nisplus-${_VERSION}.so libnss_nisplus.so.2
         ln -sf libc-${_VERSION}.so libc.so.6
         ln -sf librt-${_VERSION}.so librt.so.1
-    else    
+    else
         ln -sf libnss_nis-${_VERSION}.so libnss_nis.so.2
         ln -sf libm-${_VERSION}.so libm.so.6
         ln -sf libnss_files-${_VERSION}.so libnss_files.so.2
@@ -248,7 +256,7 @@ message  "" "selected" "distributive \"$DISTR\" version \"$BRANCH\" architecture
 # configuration
 #---------------------------------------------
 PACK_NAME="$DISTR-$BRANCH-$ARCH-rootfs-$(date +%Y%m%d)"
-PKG_URL="http://dl.fail.pp.ua/slarm64/$DISTR-$BRANCH/$DISTR"
+PKG_URL="http://dl.slarm64.org/slarm64/$DISTR-$BRANCH/${DISTR%%-*}"
 #---------------------------------------------
 
 # first clean
@@ -389,7 +397,7 @@ message  "" "message" "generating details file, including SHA1SUM..."
 
 cat << EOF > $CWD/${PACK_NAME}.info.txt
 
-This is a rootfs for "$DISTR" architecture "$ARCH" branch "$BRANCH".
+This is a rootfs for "$DISTR" architecture "$ARCH" branch "$BRANCH"
 Generated on $( date -u )
 
 The login details are:
