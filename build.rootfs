@@ -64,10 +64,10 @@ esac
 #---------------------------------------------
 # configuration
 #---------------------------------------------
-if [[ $MARCH == aarch64 ]]; then
+if [[ $ARCH == aarch64 ]]; then
     DISTR="slarm64"
-elif [[ $MARCH == riscv64 ]]; then
-    DISTR="slarm64-$MARCH"
+elif [[ $ARCH == riscv64 ]]; then
+    DISTR="slarm64-$ARCH"
 fi
 NEWHOST="$DISTR.localdomain"
 ROOTPASS="$( < /dev/urandom tr -dc '#$!_A-Z-a-z-0-9' | head -c${1:-15} ; echo ; )"
@@ -187,7 +187,7 @@ fixing_glibc() {
 
     local _VERSION="$1"
 
-    [[ $ARCH == aarch64 ]] && export LIBSUFFIX=64
+    [[ $ARCH == aarch64 || $ARCH == riscv64 ]] && export LIBSUFFIX=64
 
     pushd $ROOTFS/lib$LIBSUFFIX > /dev/null
     if [[ $BRANCH == current ]]; then
@@ -203,14 +203,16 @@ fixing_glibc() {
         ln -sf libanl-${_VERSION}.so libanl.so.1
         ln -sf libcrypt-${_VERSION}.so libcrypt.so.1
         ln -sf libBrokenLocale-${_VERSION}.so libBrokenLocale.so.1
-        if [[ $ARCH == arm ]];then 
+        if [[ $ARCH == arm ]]; then
             ln -sf ld-${_VERSION}.so ld-linux-armhf.so.3
             # fix sumlink for openssl package
             ln -sf libcrypto.so.1.0.0 libcrypto.so.1
-        fi
-        if [[ $ARCH == aarch64 ]];then
+        elif [[ $ARCH == aarch64 ]]; then
             ln -sf ld-${_VERSION}.so ld-linux-aarch64.so.1
             ln -sf /lib$LIBSUFFIX/ld-${_VERSION}.so ../lib/ld-linux-aarch64.so.1
+        elif [[ $ARCH == riscv64 ]]; then
+            ln -sf ld-${_VERSION}.so ld-linux-riscv64-lp64d.so.1
+            ln -sf /lib$LIBSUFFIX/ld-${_VERSION}.so ../lib/ld-linux-riscv64-lp64d.so.1
         fi
         ln -sf libdl-${_VERSION}.so libdl.so.2
         ln -sf libnss_dns-${_VERSION}.so libnss_dns.so.2
