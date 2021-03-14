@@ -118,7 +118,7 @@ message() {
 
 menu_branch() {
     PS3='choose version: '
-    options=("current" "14.2" "quit")
+    options=("current" "14.2" "15.0" "quit")
     select opt in "${options[@]}"
     do
         case "$opt" in
